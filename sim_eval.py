@@ -128,11 +128,13 @@ def main():
         sd.run(shape=shape, seed=args.seed, gui=False, att_d_gain_scale=0.3,
                output_folder=os.path.join(args.out, "expert"))
         pf, flown = make_policy_fn(agent, mean, std, slew_max_accel=args.slew)
+        tgt_capture = []   # 시뮬레이터가 실제로 쓴 전체 목표 경로를 직접 받음(항상 완전)
         sd.run(shape=shape, seed=args.seed, gui=False, att_d_gain_scale=0.3,
-               output_folder=os.path.join(args.out, "policy"), policy_fn=pf)
+               output_folder=os.path.join(args.out, "policy"), policy_fn=pf, target_out=tgt_capture)
         e_mean = track_err(latest_csv(os.path.join(args.out, "expert", "shape_dataset")))
         p_mean = track_err(latest_csv(os.path.join(args.out, "policy", "shape_dataset")))
-        results.append((shape, target_path(shape, args.seed), flown, e_mean, p_mean))
+        target = tgt_capture[0] if tgt_capture else target_path(shape, args.seed)
+        results.append((shape, target, flown, e_mean, p_mean))
         print(f"{shape:<10} {e_mean:>11.4f} {p_mean:>11.4f}")
 
     png = os.path.join(args.out, "trajectories_all.png")

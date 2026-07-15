@@ -392,6 +392,7 @@ def run(
         perturb_count=DEFAULT_PERTURB_COUNT,
         obs_pos_noise_std=DEFAULT_OBS_POS_NOISE_STD,
         dagger_relabel=False,
+        target_out=None,
         ):
     """`policy_fn`, if given, is called each step as `policy_fn(pos_err, state)` and its
     return value is used as `target_vel` instead of the pure-pursuit tracker's -- lets an
@@ -447,6 +448,10 @@ def run(
                                   tilt_deg=np.radians(ep['tilt_deg']),
                                   tilt_axis_deg=np.radians(ep['tilt_axis_deg']),
                                   center=ep['center'])
+    #### 평가 스크립트가 '실제로 사용된 전체 목표 경로'를 그대로 받아 그림에 그릴 수 있게 노출
+    #### (재구성에 의존하지 않으므로 정책 발산과 무관하게 목표 도형이 항상 완전하게 나온다).
+    if target_out is not None:
+        target_out.append(np.array(TARGET_POS))
     #### Time-optimal speed at each path point given max_speed/max_accel (see docstring) --
     #### not a guessed lap duration, so lap_time is the fastest this shape can be flown.
     #### The profile itself targets speed_margin * (max_speed, max_accel), not the full 100%:
