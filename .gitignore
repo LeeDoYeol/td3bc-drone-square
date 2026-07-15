@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+runs/
+runs_*/
+sim_eval_out/
+*.pt
+*.npz
+*.png

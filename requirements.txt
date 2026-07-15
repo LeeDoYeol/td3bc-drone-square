@@ -1,0 +1,10 @@
+# TD3+BC 학습/평가 의존성
+#   pip install -r requirements.txt
+#   GPU면 https://pytorch.org 에서 CUDA 버전 torch 먼저 설치 권장.
+torch>=2.1
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+# 평가(sim_eval.py: 같은 시뮬레이터 롤아웃)용
+gym-pybullet-drones>=2.0
+scipy>=1.10
