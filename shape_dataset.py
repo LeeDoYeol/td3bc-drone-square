@@ -393,6 +393,7 @@ def run(
         obs_pos_noise_std=DEFAULT_OBS_POS_NOISE_STD,
         dagger_relabel=False,
         target_out=None,
+        pos_out=None,
         ):
     """`policy_fn`, if given, is called each step as `policy_fn(pos_err, state)` and its
     return value is used as `target_vel` instead of the pure-pursuit tracker's -- lets an
@@ -624,6 +625,8 @@ def run(
                        control=np.hstack([TARGET_POS[closest_idx], logged_vel, np.zeros(6)]))
         if actual_pos is not None:
             actual_pos.append(state[0:3].copy())
+        if pos_out is not None:
+            pos_out.append(state[0:3].copy())
 
         env.render()
         if gui:

@@ -5,6 +5,7 @@ runs/
 runs_*/
 sim_eval*/
 select*/
+investigate*/
 *.pt
 *.npz
 *.png
