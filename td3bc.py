@@ -55,7 +55,7 @@ class Critic(nn.Module):
 class TD3_BC:
     def __init__(self, state_dim, action_dim, max_action, device,
                  discount=0.99, tau=0.005, policy_noise=0.2, noise_clip=0.5,
-                 policy_freq=2, alpha=2.5, lr=3e-4):
+                 policy_freq=2, alpha=2.5, lr=3e-4, grad_clip=1.0):
         self.device = device
         self.actor = Actor(state_dim, action_dim, max_action).to(device)
         self.actor_target = copy.deepcopy(self.actor)
@@ -72,6 +72,7 @@ class TD3_BC:
         self.noise_clip = noise_clip * max_action
         self.policy_freq = policy_freq
         self.alpha = alpha
+        self.grad_clip = grad_clip     # critic/actor gradient norm clip (0=off) — 손실 폭발 억제
         self.total_it = 0
 
     @torch.no_grad()
@@ -91,7 +92,10 @@ class TD3_BC:
 
         cq1, cq2 = self.critic(state, action)
         critic_loss = F.mse_loss(cq1, target_Q) + F.mse_loss(cq2, target_Q)
-        self.critic_opt.zero_grad(); critic_loss.backward(); self.critic_opt.step()
+        self.critic_opt.zero_grad(); critic_loss.backward()
+        if self.grad_clip:
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
+        self.critic_opt.step()
 
         info = {"critic_loss": float(critic_loss.item())}
         if self.total_it % self.policy_freq == 0:
@@ -100,7 +104,10 @@ class TD3_BC:
             lmbda = self.alpha / Q.abs().mean().detach()
             bc = F.mse_loss(pi, action)
             actor_loss = -lmbda * Q.mean() + bc
-            self.actor_opt.zero_grad(); actor_loss.backward(); self.actor_opt.step()
+            self.actor_opt.zero_grad(); actor_loss.backward()
+            if self.grad_clip:
+                torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_clip)
+            self.actor_opt.step()
 
             for p, tp in zip(self.critic.parameters(), self.critic_target.parameters()):
                 tp.data.copy_(self.tau * p.data + (1 - self.tau) * tp.data)

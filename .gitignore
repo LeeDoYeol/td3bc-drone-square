@@ -4,6 +4,7 @@ __pycache__/
 runs/
 runs_*/
 sim_eval_out/
+select*/
 *.pt
 *.npz
 *.png

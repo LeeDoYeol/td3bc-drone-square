@@ -41,6 +41,10 @@ def main():
     ap.add_argument("--discount", type=float, default=0.99)
     ap.add_argument("--tau", type=float, default=0.005)
     ap.add_argument("--policy_freq", type=int, default=2)
+    ap.add_argument("--grad_clip", type=float, default=1.0,
+                    help="critic/actor gradient norm clip (0=off) — critic 폭발 억제")
+    ap.add_argument("--save_every", type=int, default=0,
+                    help=">0이면 N스텝마다 체크포인트 저장(ckpt_{step}.pt) → 나중에 best 선택")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed); np.random.seed(args.seed)
@@ -66,7 +70,12 @@ def main():
     # 에이전트 (max_action 은 데이터에서 관측된 최대 행동 크기)
     agent = TD3_BC(STATE_DIM, ACTION_DIM, max_action=max_action, device=device,
                    discount=args.discount, tau=args.tau, policy_freq=args.policy_freq,
-                   alpha=args.alpha)
+                   alpha=args.alpha, grad_clip=args.grad_clip)
+
+    # 정규화 값 먼저 저장(모든 체크포인트가 공유; best 선택 때 필요)
+    np.savez(os.path.join(args.out, "norm.npz"), mean=mean, std=std, max_action=max_action)
+    if args.save_every:
+        os.makedirs(os.path.join(args.out, "ckpts"), exist_ok=True)
 
     # 학습
     t0 = time.time()
@@ -79,10 +88,11 @@ def main():
                 msg += f"  actor={info['actor_loss']:.4f}  bc={info['bc_loss']:.4f}  Q={info['Q']:.3f}"
             msg += f"  ({t/el:.0f} it/s)"
             print(msg, flush=True)
+        if args.save_every and t % args.save_every == 0:
+            agent.save(os.path.join(args.out, "ckpts", f"ckpt_{t:07d}.pt"))
 
-    # 저장 (mean/std/max_action 은 정책 사용 시 필요)
+    # 최종 저장
     agent.save(os.path.join(args.out, "td3bc_model.pt"))
-    np.savez(os.path.join(args.out, "norm.npz"), mean=mean, std=std, max_action=max_action)
     print(f"[OK] model -> {os.path.join(args.out, 'td3bc_model.pt')}")
     print(f"[OK] norm  -> {os.path.join(args.out, 'norm.npz')}")
 
