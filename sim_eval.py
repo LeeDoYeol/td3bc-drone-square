@@ -117,6 +117,9 @@ def main():
                     default=["line", "triangle", "square", "circle", "star"])
     ap.add_argument("--seed", type=int, default=500, help="held-out seed")
     ap.add_argument("--slew", type=float, default=2.0, help="slew max accel[m/s^2] (데이터=2.0)")
+    ap.add_argument("--att_d_gain", type=float, default=0.3,
+                    help="평가 시 자세 D게인 배율 — 데이터 수집 때와 같아야 함"
+                         "(merged1.5M=0.3, hard_v2=1.0)")
     ap.add_argument("--out", default="sim_eval_out")
     args = ap.parse_args()
 
@@ -125,11 +128,11 @@ def main():
     print(f"{'shape':<10} {'expert_err':>11} {'policy_err':>11}  (mean tracking error, m)")
     results = []
     for shape in args.shapes:
-        sd.run(shape=shape, seed=args.seed, gui=False, att_d_gain_scale=0.3,
+        sd.run(shape=shape, seed=args.seed, gui=False, att_d_gain_scale=args.att_d_gain,
                output_folder=os.path.join(args.out, "expert"))
         pf, flown = make_policy_fn(agent, mean, std, slew_max_accel=args.slew)
         tgt_capture = []   # 시뮬레이터가 실제로 쓴 전체 목표 경로를 직접 받음(항상 완전)
-        sd.run(shape=shape, seed=args.seed, gui=False, att_d_gain_scale=0.3,
+        sd.run(shape=shape, seed=args.seed, gui=False, att_d_gain_scale=args.att_d_gain,
                output_folder=os.path.join(args.out, "policy"), policy_fn=pf, target_out=tgt_capture)
         e_mean = track_err(latest_csv(os.path.join(args.out, "expert", "shape_dataset")))
         p_mean = track_err(latest_csv(os.path.join(args.out, "policy", "shape_dataset")))

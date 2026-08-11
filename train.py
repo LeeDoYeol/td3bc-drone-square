@@ -43,6 +43,14 @@ def main():
     ap.add_argument("--policy_freq", type=int, default=2)
     ap.add_argument("--grad_clip", type=float, default=1.0,
                     help="critic/actor gradient norm clip (0=off) — critic 폭발 억제")
+    ap.add_argument("--lr", type=float, default=3e-4,
+                    help="learning rate (critic/actor) — 낮추면 critic 폭발 완화(느린 학습)")
+    ap.add_argument("--extra_data", default=None,
+                    help="합성 전이 npz(쉼표로 여러 개) — gen_diffusion.py / gen_gan.py 산출물")
+    ap.add_argument("--real_rows", type=int, default=None,
+                    help="실데이터를 이 개수로 잘라 사용(0이면 합성만). 증강 비율 실험용")
+    ap.add_argument("--extra_rows", type=int, default=None,
+                    help="합성 데이터를 이 개수로 잘라 사용(파일당)")
     ap.add_argument("--save_every", type=int, default=0,
                     help=">0이면 N스텝마다 체크포인트 저장(ckpt_{step}.pt) → 나중에 best 선택")
     args = ap.parse_args()
@@ -54,6 +62,22 @@ def main():
 
     # 데이터
     state, action, next_state, reward, not_done, max_action = load_dataset(args.data, args.max_rows)
+    if args.real_rows is not None:           # 0 이면 합성 데이터만으로 학습(대체 실험)
+        state, action, next_state, reward, not_done = (
+            x[:args.real_rows] for x in (state, action, next_state, reward, not_done))
+        print(f"real rows -> {len(state):,}")
+    # 합성 전이(diffusion/GAN) 를 실데이터에 이어 붙인다. 정규화는 아래에서 합쳐진 전체로 다시 계산.
+    if args.extra_data:
+        from gen_common import load_synth
+        for path in args.extra_data.split(","):
+            s2, a2, ns2, r2, nd2 = load_synth(path.strip())
+            if args.extra_rows is not None:
+                s2, a2, ns2, r2, nd2 = (x[:args.extra_rows] for x in (s2, a2, ns2, r2, nd2))
+            state = np.concatenate([state, s2]); action = np.concatenate([action, a2])
+            next_state = np.concatenate([next_state, ns2]); reward = np.concatenate([reward, r2])
+            not_done = np.concatenate([not_done, nd2])
+            print(f"+ synthetic {len(s2):,} <- {path.strip()}")
+        max_action = float(np.abs(action).max())
     state, next_state, mean, std = normalize_states(state, next_state)
     print(f"transitions={len(state):,}  state_dim={state.shape[1]}  action_dim={action.shape[1]}")
     print(f"action range=[{action.min():.3f}, {action.max():.3f}] (max_action={max_action:.3f})  "
@@ -70,7 +94,7 @@ def main():
     # 에이전트 (max_action 은 데이터에서 관측된 최대 행동 크기)
     agent = TD3_BC(STATE_DIM, ACTION_DIM, max_action=max_action, device=device,
                    discount=args.discount, tau=args.tau, policy_freq=args.policy_freq,
-                   alpha=args.alpha, grad_clip=args.grad_clip)
+                   alpha=args.alpha, grad_clip=args.grad_clip, lr=args.lr)
 
     # 정규화 값 먼저 저장(모든 체크포인트가 공유; best 선택 때 필요)
     np.savez(os.path.join(args.out, "norm.npz"), mean=mean, std=std, max_action=max_action)

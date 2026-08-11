@@ -6,6 +6,13 @@ runs_*/
 sim_eval*/
 select*/
 investigate*/
+artifacts_*/
+logs/
+dist/
+*.zip
+results.csv
+results.md
+data/merged1.5M_hard_v2.csv.gz
 *.pt
 *.npz
 *.png

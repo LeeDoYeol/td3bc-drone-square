@@ -17,14 +17,14 @@ import sim_eval as se
 from td3bc import TD3_BC
 
 
-def eval_model(model_path, mean, std, maxa, shapes, seed, slew, out_tmp):
+def eval_model(model_path, mean, std, maxa, shapes, seed, slew, out_tmp, att_d_gain=0.3):
     agent = TD3_BC(16, 3, max_action=maxa, device="cpu")
     agent.load(model_path, map_location="cpu")
     per, recs = {}, {}
     for shape in shapes:
         pf, flown = se.make_policy_fn(agent, mean, std, slew_max_accel=slew)
         tgt = []
-        sd.run(shape=shape, seed=seed, gui=False, att_d_gain_scale=0.3,
+        sd.run(shape=shape, seed=seed, gui=False, att_d_gain_scale=att_d_gain,
                output_folder=out_tmp, policy_fn=pf, target_out=tgt)
         per[shape] = se.track_err(se.latest_csv(os.path.join(out_tmp, "shape_dataset")))
         recs[shape] = (tgt[0], np.array(flown), per[shape])
@@ -37,6 +37,9 @@ def main():
     ap.add_argument("--shapes", nargs="+", default=["square"])
     ap.add_argument("--seed", type=int, default=500)
     ap.add_argument("--slew", type=float, default=2.0)
+    ap.add_argument("--att_d_gain", type=float, default=0.3,
+                    help="평가 시 자세 D게인 배율 — 데이터 수집 때와 같아야 함"
+                         "(merged1.5M=0.3, hard_v2=1.0)")
     ap.add_argument("--out", default="select_out")
     args = ap.parse_args()
 
@@ -56,7 +59,7 @@ def main():
     best = None
     for ck in ckpts:
         m, per, recs = eval_model(ck, mean, std, maxa, args.shapes, args.seed, args.slew,
-                                  os.path.join(args.out, "_tmp"))
+                                  os.path.join(args.out, "_tmp"), args.att_d_gain)
         print(f"{os.path.basename(ck):<22} {m:>8.4f}  " + " ".join(f"{per[s]:>8.4f}" for s in args.shapes))
         if best is None or m < best[0]:
             best = (m, ck, recs)
