@@ -6,30 +6,11 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-mkdir -p data
-curl -L -o data/merged1.5M_hard_v2.csv.gz \
-  https://media.githubusercontent.com/media/subsubli/drone_simulation/main/gym_pybullet_drones/gym_pybullet_drones/examples/data_hard_v2/merged1.5M_hard_v2.csv.gz
+python run_all.py --device cuda
+```
 
-python gen_diffusion.py --data data/merged1.5M_hard_v2.csv.gz --n 1500000 --steps 30000 \
-  --save_model gen_diff_hv2.pt --out synth_diff_hv2.npz --device cuda
-
-python gen_gan.py --data data/merged1.5M_hard_v2.csv.gz --n 1500000 --steps 6000 --hidden 384 \
-  --save_model gen_gan_hv2.pt --out synth_gan_hv2.npz --device cuda
-
-python gen_diffusion.py --data data/merged1.5M_hard_v2.csv.gz --max_rows 100000 --n 1400000 \
-  --steps 30000 --save_model gen_diff_small.pt --out synth_diff_small.npz --device cuda
-
-python gen_gan.py --data data/merged1.5M_hard_v2.csv.gz --max_rows 100000 --n 1400000 \
-  --steps 6000 --hidden 384 --save_model gen_gan_small.pt --out synth_gan_small.npz --device cuda
-
-python gen_check.py --data data/merged1.5M_hard_v2.csv.gz \
-  --synth synth_diff_hv2.npz synth_gan_hv2.npz synth_diff_small.npz synth_gan_small.npz \
-  --out gen_check_hv2
-
-python run_experiments.py --data data/merged1.5M_hard_v2.csv.gz \
-  --diff synth_diff_hv2.npz --gan synth_gan_hv2.npz \
-  --diff_small synth_diff_small.npz --gan_small synth_gan_small.npz \
-  --steps 300000 --save_every 10000 --att_d_gain 1.0 --device cuda
-
-python collect_outputs.py --name hard_v2
+```bash
+python run_all.py --device cuda --skip_small
+python run_all.py --device cuda --only c1_real15 c3_real05_dif10
+python run_all.py --help
 ```
