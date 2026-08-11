@@ -49,6 +49,9 @@ def main():
                     help="합성 전이 npz(쉼표로 여러 개) — gen_diffusion.py / gen_gan.py 산출물")
     ap.add_argument("--real_rows", type=int, default=None,
                     help="실데이터를 이 개수로 잘라 사용(0이면 합성만). 증강 비율 실험용")
+    ap.add_argument("--real_subset", choices=["even", "head"], default="even",
+                    help="실데이터 일부만 쓸 때 고르는 방식. even=전체에 흩어진 에피소드"
+                         "(도형이 뭉쳐 있어 head 로 자르면 한 도형만 담긴다)")
     ap.add_argument("--extra_rows", type=int, default=None,
                     help="합성 데이터를 이 개수로 잘라 사용(파일당)")
     ap.add_argument("--save_every", type=int, default=0,
@@ -63,9 +66,10 @@ def main():
     # 데이터
     state, action, next_state, reward, not_done, max_action = load_dataset(args.data, args.max_rows)
     if args.real_rows is not None:           # 0 이면 합성 데이터만으로 학습(대체 실험)
-        state, action, next_state, reward, not_done = (
-            x[:args.real_rows] for x in (state, action, next_state, reward, not_done))
-        print(f"real rows -> {len(state):,}")
+        from data import take_subset
+        state, action, next_state, reward, not_done = take_subset(
+            [state, action, next_state, reward, not_done], args.real_rows, args.real_subset)
+        print(f"real rows -> {len(state):,} ({args.real_subset})")
     # 합성 전이(diffusion/GAN) 를 실데이터에 이어 붙인다. 정규화는 아래에서 합쳐진 전체로 다시 계산.
     if args.extra_data:
         from gen_common import load_synth

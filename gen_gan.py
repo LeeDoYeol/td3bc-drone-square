@@ -26,7 +26,10 @@ def grad_penalty(critic, real, fake, device):
 def main():
     ap = argparse.ArgumentParser(description="WGAN-GP 전이 생성")
     ap.add_argument("--data", default="data/merged1.5M.csv.gz")
-    ap.add_argument("--max_rows", type=int, default=None)
+    ap.add_argument("--max_rows", type=int, default=None,
+                    help="실데이터 일부만으로 생성기 학습(저데이터 증강 실험). 예: 100000")
+    ap.add_argument("--subset", choices=["even", "head"], default="even",
+                    help="일부만 쓸 때 고르는 방식(even=전체에 흩어진 에피소드)")
     ap.add_argument("--n", type=int, default=500_000, help="생성할 전이 수")
     ap.add_argument("--steps", type=int, default=15_000, help="생성기 업데이트 수")
     ap.add_argument("--batch_size", type=int, default=512)
@@ -57,7 +60,7 @@ def main():
         G.load_state_dict(ck["G"])
         print(f"loaded generator <- {args.load_model}")
     else:
-        x_raw, lo, hi = real_matrix(args.data, args.max_rows, delta=args.delta)
+        x_raw, lo, hi = real_matrix(args.data, args.max_rows, delta=args.delta, subset=args.subset)
         mu, sd = fit_norm(x_raw)
         X = torch.as_tensor((x_raw - mu) / sd)
 

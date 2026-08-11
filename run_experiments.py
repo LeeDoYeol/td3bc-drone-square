@@ -19,8 +19,28 @@ import argparse
 import subprocess
 
 
-def configs(diff, gan):
-    """(태그, train.py 추가인자, 설명) — 총량은 모두 1.5M."""
+def configs(diff, gan, diff_s=None, gan_s=None):
+    """(태그, train.py 추가인자, 설명).
+
+    c1~c7 : 총량 1.5M 고정, 실제/합성 비율만 변경 (증강이 실데이터를 대체할 수 있는가)
+    c8~c9 : 저데이터 구간 — 실제 0.1M 만 있다고 가정. 여기서 쓰는 합성 데이터는
+            그 0.1M 으로만 학습한 생성기(diff_s/gan_s)가 만든 것이어야 한다.
+            1.5M 전체로 학습한 생성기를 쓰면 '없다고 가정한 데이터'가 새어 들어간다.
+    """
+    small = [] if not (diff_s and gan_s) else [
+        ("c8_real01",       ["--real_rows", "100000"],
+         "원본 0.1M (저데이터 기준선)"),
+        ("c9a_real01_dif04", ["--real_rows", "100000", "--extra_data", diff_s, "--extra_rows", "400000"],
+         "원본 0.1M + diffusion 0.4M (0.1M로 학습한 생성기)"),
+        ("c9b_real01_dif14", ["--real_rows", "100000", "--extra_data", diff_s, "--extra_rows", "1400000"],
+         "원본 0.1M + diffusion 1.4M (0.1M로 학습한 생성기)"),
+        ("c9c_real01_gan04", ["--real_rows", "100000", "--extra_data", gan_s, "--extra_rows", "400000"],
+         "원본 0.1M + GAN 0.4M (0.1M로 학습한 생성기)"),
+        ("c9d_real01_gan14", ["--real_rows", "100000", "--extra_data", gan_s, "--extra_rows", "1400000"],
+         "원본 0.1M + GAN 1.4M (0.1M로 학습한 생성기)"),
+        ("c8b_real05",      ["--real_rows", "500000"],
+         "원본 0.5M (데이터량 참고선)"),
+    ]
     return [
         ("c1_real15",       ["--real_rows", "1500000"],
          "원본 1.5M (기준선)"),
@@ -36,7 +56,7 @@ def configs(diff, gan):
          "diffusion 1.5M (합성만)"),
         ("c7_gan15",        ["--real_rows", "0", "--extra_data", gan, "--extra_rows", "1500000"],
          "GAN 1.5M (합성만)"),
-    ]
+    ] + small
 
 
 def run(cmd, log_path):
@@ -58,6 +78,10 @@ def main():
     ap.add_argument("--data", default="data/merged1.5M_hard_v2.csv.gz")
     ap.add_argument("--diff", default="synth_diff_hv2.npz", help="diffusion 합성 npz")
     ap.add_argument("--gan", default="synth_gan_hv2.npz", help="GAN 합성 npz")
+    ap.add_argument("--diff_small", default=None,
+                    help="원본 0.1M 만으로 학습한 diffusion 합성 npz (c8/c9 실행 조건)")
+    ap.add_argument("--gan_small", default=None,
+                    help="원본 0.1M 만으로 학습한 GAN 합성 npz (c8/c9 실행 조건)")
     ap.add_argument("--steps", type=int, default=300000)
     ap.add_argument("--save_every", type=int, default=10000)
     ap.add_argument("--alpha", type=float, default=2.5)
@@ -75,7 +99,7 @@ def main():
     py = sys.executable
     rows, t_all = [], time.time()
 
-    for tag, extra, desc in configs(args.diff, args.gan):
+    for tag, extra, desc in configs(args.diff, args.gan, args.diff_small, args.gan_small):
         if args.only and tag not in args.only:
             continue
         run_dir, sel_dir = f"runs_{tag}", f"select_{tag}"

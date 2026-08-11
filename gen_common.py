@@ -80,10 +80,18 @@ def load_synth(path):
     return (z["state"], z["action"], z["next_state"], z["reward"], z["not_done"])
 
 
-def real_matrix(data_path, max_rows=None, delta=False):
-    """실제 CSV → (X(N,36), lo, hi) — 생성모델 학습 데이터와 클리핑 범위."""
-    from data import load_dataset
-    state, action, next_state, reward, _, max_action = load_dataset(data_path, max_rows)
+def real_matrix(data_path, max_rows=None, delta=False, subset="even"):
+    """실제 CSV → (X(N,36), lo, hi) — 생성모델 학습 데이터와 클리핑 범위.
+
+    max_rows 로 일부만 쓸 때 subset="even" 이면 파일 전체에 흩어진 에피소드를 뽑는다
+    (에피소드가 도형별로 뭉쳐 있어 앞에서 자르면 한 도형만 학습하게 된다).
+    """
+    from data import load_dataset, take_subset
+    state, action, next_state, reward, not_done, max_action = load_dataset(data_path)
+    if max_rows is not None:
+        state, action, next_state, reward, not_done = take_subset(
+            [state, action, next_state, reward, not_done], max_rows, subset)
+        print(f"real subset -> {len(state):,} rows ({subset})")
     x = build_matrix(state, action, next_state, reward, delta)
     lo, hi = x.min(0, keepdims=True), x.max(0, keepdims=True)
     print(f"real transitions={len(x):,} dim={x.shape[1]} (max_action={max_action:.3f})")

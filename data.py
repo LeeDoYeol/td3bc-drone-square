@@ -71,6 +71,49 @@ def load_dataset(data_path, max_rows=None):
     return state, action, next_state, reward, not_done, max_action
 
 
+def episode_slices(not_done):
+    """not_done(=0 이 에피소드 마지막 행) 으로부터 에피소드 경계 [(start, end), ...]."""
+    nd = np.asarray(not_done).reshape(-1)
+    ends = np.flatnonzero(nd < 0.5)
+    if len(ends) == 0:
+        return [(0, len(nd))]
+    starts = np.concatenate([[0], ends[:-1] + 1])
+    sl = [(int(s), int(e) + 1) for s, e in zip(starts, ends)]
+    if ends[-1] + 1 < len(nd):                    # done 없이 끝난 꼬리 구간
+        sl.append((int(ends[-1]) + 1, len(nd)))
+    return sl
+
+
+def take_subset(arrays, n_rows, mode="even"):
+    """전이 배열들을 n_rows 개로 줄인다.
+
+    mode="head" : 앞에서부터 (기존 방식)
+    mode="even" : 파일 전체에 고르게 흩어진 에피소드를 뽑는다.
+      이 데이터셋은 에피소드가 도형별로 뭉쳐 있어(앞쪽 100개가 원, 나머지가 다각형),
+      앞에서부터 자르면 한 도형만 담긴다. 적은 양을 쓸 때는 반드시 even 을 써야
+      '데이터가 적은 것'과 '도형이 빠진 것'이 섞이지 않는다.
+    """
+    not_done = arrays[-1]
+    total = len(not_done)
+    if n_rows >= total:
+        return list(arrays)
+    if mode == "head":
+        return [a[:n_rows] for a in arrays]
+
+    sl = episode_slices(not_done)
+    k = min(len(sl), max(1, round(n_rows / (total / len(sl)))))
+    picks = sorted(set(np.linspace(0, len(sl) - 1, k).round().astype(int).tolist()))
+    rest = [i for i in range(len(sl)) if i not in set(picks)]
+    chosen, got = [], 0
+    for i in picks + rest:                        # 목표 행수를 채울 때까지 에피소드 추가
+        if got >= n_rows:
+            break
+        chosen.append(i)
+        got += sl[i][1] - sl[i][0]
+    idx = np.concatenate([np.arange(*sl[i]) for i in sorted(chosen)])[:n_rows]
+    return [a[idx] for a in arrays]
+
+
 def normalize_states(state, next_state, eps=1e-3):
     mean = state.mean(0, keepdims=True)
     std = state.std(0, keepdims=True) + eps
