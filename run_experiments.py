@@ -14,7 +14,9 @@ import os
 import re
 import csv
 import sys
+import json
 import time
+import shutil
 import argparse
 import subprocess
 
@@ -108,14 +110,32 @@ def main():
         t0 = time.time()
         print(f"\n{'='*70}\n[{tag}] {desc}\n{'='*70}", flush=True)
 
-        if not os.path.exists(os.path.join(run_dir, "td3bc_model.pt")):
+        #### 이어서 실행할 때 '같은 설정으로 이미 끝난 것'만 건너뛴다. alpha 등을 바꿔 다시
+        #### 돌리는 경우 예전 모델을 조용히 재사용하면 실험이 통째로 무의미해지므로,
+        #### 학습 조건을 run_meta.json 에 적어두고 다르면 다시 학습한다.
+        meta_path = os.path.join(run_dir, "run_meta.json")
+        sig = {"data": args.data, "steps": args.steps, "alpha": args.alpha,
+               "grad_clip": args.grad_clip, "extra": extra}
+        old = None
+        if os.path.exists(meta_path):
+            try:
+                old = json.load(open(meta_path, encoding="utf-8"))
+            except Exception:
+                old = None
+        trained = os.path.exists(os.path.join(run_dir, "td3bc_model.pt"))
+        if trained and old == sig:
+            print(f"[skip] {run_dir} 같은 설정으로 이미 학습됨", flush=True)
+        else:
+            if trained:
+                print(f"[재학습] {run_dir} 설정이 달라졌음 "
+                      f"(alpha={old.get('alpha') if old else '?'} -> {args.alpha})", flush=True)
+                shutil.rmtree(sel_dir, ignore_errors=True)   # 예전 평가 결과도 무효
             run([py, "train.py", "--data", args.data, "--steps", str(args.steps),
                  "--save_every", str(args.save_every), "--alpha", str(args.alpha),
                  "--reward_norm", "False", "--grad_clip", str(args.grad_clip),
                  "--device", args.device, "--out", run_dir] + extra,
                 os.path.join(args.logs, f"{tag}_train.log"))
-        else:
-            print(f"[skip] {run_dir} 이미 학습됨", flush=True)
+            json.dump(sig, open(meta_path, "w", encoding="utf-8"))
 
         sel_log = os.path.join(args.logs, f"{tag}_select.log")
         if not os.path.exists(os.path.join(sel_dir, "best_trajectories.png")):

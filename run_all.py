@@ -75,6 +75,9 @@ def main():
     ap.add_argument("--stride", type=int, default=1,
                     help="체크포인트를 N개마다 하나씩만 평가(전체 시간의 대부분이 평가라 크게 단축)")
     ap.add_argument("--skip_small", action="store_true", help="저데이터 실험(8·9번) 제외")
+    ap.add_argument("--skip_gen", action="store_true",
+                    help="증강 데이터 생성·점검을 건너뛴다. 원본만 쓰는 설정(c1/c8/c8b)만 돌릴 때"
+                         " 쓰면 생성에 드는 시간을 통째로 아낀다")
     ap.add_argument("--only", nargs="+", default=None, help="특정 설정만 학습")
     ap.add_argument("--name", default="hard_v2", help="산출물 zip 이름 꼬리표")
     args = ap.parse_args()
@@ -116,16 +119,19 @@ def main():
                                      "--hidden", "384", "--save_model", "gen_gan_small.pt",
                                      "--out", "synth_gan_small.npz", "--device", args.device]),
         ]
-    for out, cmd in jobs:
-        if os.path.exists(out):
-            print(f"[skip] {out} 이미 있음")
-        else:
-            sh(cmd, os.path.join("logs", os.path.basename(out).replace(".npz", "_gen.log")))
+    if args.skip_gen:
+        print("[skip] 증강 데이터 생성·점검 건너뜀 (--skip_gen)")
+    else:
+        for out, cmd in jobs:
+            if os.path.exists(out):
+                print(f"[skip] {out} 이미 있음")
+            else:
+                sh(cmd, os.path.join("logs", os.path.basename(out).replace(".npz", "_gen.log")))
 
-    # 3) 합성 데이터 품질 점검 (학습 전에 물리 일관성 확인)
-    synths = [o for o, _ in jobs]
-    sh([py, "gen_check.py", "--data", args.data, "--synth", *synths, "--out", "gen_check_hv2"],
-       os.path.join("logs", "gen_check.log"))
+        # 3) 합성 데이터 품질 점검 (학습 전에 물리 일관성 확인)
+        synths = [o for o, _ in jobs]
+        sh([py, "gen_check.py", "--data", args.data, "--synth", *synths, "--out", "gen_check_hv2"],
+           os.path.join("logs", "gen_check.log"))
 
     # 4) 설정별 학습 + 체크포인트 best 선택
     cmd = [py, "run_experiments.py", "--data", args.data,
