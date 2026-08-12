@@ -42,6 +42,8 @@ def main():
     ap.add_argument("--att_d_gain", type=float, default=0.3,
                     help="평가 시 자세 D게인 배율 — 데이터 수집 때와 같아야 함"
                          "(merged1.5M=0.3, hard_v2=1.0)")
+    ap.add_argument("--stride", type=int, default=1,
+                    help="체크포인트를 N개마다 하나씩만 평가(시간 단축). 2면 절반만 본다")
     ap.add_argument("--cov_tol", type=float, default=0.5,
                     help="경로점에 이 거리[m] 안으로 접근하면 '지나갔다'로 센다")
     ap.add_argument("--min_coverage", type=float, default=0.9,
@@ -55,6 +57,10 @@ def main():
     maxa = float(nz["max_action"]) if "max_action" in nz else 1.4
 
     ckpts = sorted(glob.glob(os.path.join(args.run_dir, "ckpts", "ckpt_*.pt")))
+    #### 평가(시뮬레이션 롤아웃)가 전체 시간의 대부분이다. stride 로 체크포인트를 솎으면
+    #### 그만큼 선형으로 빨라진다 — 저장은 촘촘히 해 두고 시간이 없을 때만 솎아 본다.
+    if args.stride > 1:
+        ckpts = ckpts[args.stride - 1::args.stride]
     final = os.path.join(args.run_dir, "td3bc_model.pt")
     if os.path.exists(final):
         ckpts.append(final)

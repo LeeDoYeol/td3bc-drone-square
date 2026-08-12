@@ -70,6 +70,10 @@ def main():
     ap.add_argument("--n_synth_small", type=int, default=1400000, help="저데이터 기반 합성 개수")
     ap.add_argument("--diff_steps", type=int, default=30000, help="diffusion 학습 스텝")
     ap.add_argument("--gan_steps", type=int, default=6000, help="GAN 생성기 업데이트 수")
+    ap.add_argument("--alpha", type=float, default=2.5,
+                    help="TD3+BC의 RL 비중. 높으면 보상 최대화, 낮으면 모방(BC) 위주")
+    ap.add_argument("--stride", type=int, default=1,
+                    help="체크포인트를 N개마다 하나씩만 평가(전체 시간의 대부분이 평가라 크게 단축)")
     ap.add_argument("--skip_small", action="store_true", help="저데이터 실험(8·9번) 제외")
     ap.add_argument("--only", nargs="+", default=None, help="특정 설정만 학습")
     ap.add_argument("--name", default="hard_v2", help="산출물 zip 이름 꼬리표")
@@ -127,6 +131,7 @@ def main():
     cmd = [py, "run_experiments.py", "--data", args.data,
            "--diff", "synth_diff_hv2.npz", "--gan", "synth_gan_hv2.npz",
            "--steps", str(args.steps), "--save_every", str(args.save_every),
+           "--alpha", str(args.alpha), "--stride", str(args.stride),
            "--att_d_gain", str(args.att_d_gain), "--device", args.device]
     if not args.skip_small:
         cmd += ["--diff_small", "synth_diff_small.npz", "--gan_small", "synth_gan_small.npz"]

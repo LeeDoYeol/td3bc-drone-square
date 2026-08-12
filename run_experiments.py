@@ -90,6 +90,8 @@ def main():
     ap.add_argument("--seed", type=int, default=500, help="평가용 held-out 시드")
     ap.add_argument("--att_d_gain", type=float, default=1.0,
                     help="평가 시 자세 D게인 — 데이터 수집 때와 같게 (hard_v2=1.0, merged1.5M=0.3)")
+    ap.add_argument("--stride", type=int, default=1,
+                    help="체크포인트를 N개마다 하나씩만 평가(전체 시간의 대부분이 평가라 크게 단축)")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--only", nargs="+", default=None, help="특정 태그만 실행")
     ap.add_argument("--logs", default="logs")
@@ -119,7 +121,7 @@ def main():
         if not os.path.exists(os.path.join(sel_dir, "best_trajectories.png")):
             run([py, "select_best.py", "--run_dir", run_dir, "--shapes", *args.shapes,
                  "--seed", str(args.seed), "--att_d_gain", str(args.att_d_gain),
-                 "--out", sel_dir], sel_log)
+                 "--stride", str(args.stride), "--out", sel_dir], sel_log)
         else:
             print(f"[skip] {sel_dir} 이미 평가됨", flush=True)
 
