@@ -17,18 +17,20 @@ import sim_eval as se
 from td3bc import TD3_BC
 
 
-def eval_model(model_path, mean, std, maxa, shapes, seed, slew, out_tmp, att_d_gain=0.3):
+def eval_model(model_path, mean, std, maxa, shapes, seed, slew, out_tmp, att_d_gain=0.3,
+               cov_tol=0.5):
     agent = TD3_BC(16, 3, max_action=maxa, device="cpu")
     agent.load(model_path, map_location="cpu")
-    per, recs = {}, {}
+    per, cov, recs = {}, {}, {}
     for shape in shapes:
         pf, flown = se.make_policy_fn(agent, mean, std, slew_max_accel=slew)
         tgt = []
         sd.run(shape=shape, seed=seed, gui=False, att_d_gain_scale=att_d_gain,
                output_folder=out_tmp, policy_fn=pf, target_out=tgt)
         per[shape] = se.track_err(se.latest_csv(os.path.join(out_tmp, "shape_dataset")))
+        cov[shape] = se.path_coverage(tgt[0], np.array(flown), cov_tol)
         recs[shape] = (tgt[0], np.array(flown), per[shape])
-    return float(np.mean(list(per.values()))), per, recs
+    return (float(np.mean(list(per.values()))), float(np.min(list(cov.values()))), per, cov, recs)
 
 
 def main():
@@ -40,6 +42,10 @@ def main():
     ap.add_argument("--att_d_gain", type=float, default=0.3,
                     help="평가 시 자세 D게인 배율 — 데이터 수집 때와 같아야 함"
                          "(merged1.5M=0.3, hard_v2=1.0)")
+    ap.add_argument("--cov_tol", type=float, default=0.5,
+                    help="경로점에 이 거리[m] 안으로 접근하면 '지나갔다'로 센다")
+    ap.add_argument("--min_coverage", type=float, default=0.9,
+                    help="best 후보가 되기 위한 최소 경로 완주율(제자리 정지 정책 배제)")
     ap.add_argument("--out", default="select_out")
     args = ap.parse_args()
 
@@ -55,18 +61,29 @@ def main():
     if not ckpts:
         print("체크포인트 없음. train.py --save_every 로 저장하세요."); return
 
-    print(f"{'checkpoint':<22} {'mean':>8}  " + " ".join(f"{s:>8}" for s in args.shapes))
-    best = None
+    print(f"{'checkpoint':<22} {'mean':>8} {'cover':>7}  " + " ".join(f"{s:>8}" for s in args.shapes))
+    rows = []
     for ck in ckpts:
-        m, per, recs = eval_model(ck, mean, std, maxa, args.shapes, args.seed, args.slew,
-                                  os.path.join(args.out, "_tmp"), args.att_d_gain)
-        print(f"{os.path.basename(ck):<22} {m:>8.4f}  " + " ".join(f"{per[s]:>8.4f}" for s in args.shapes))
-        if best is None or m < best[0]:
-            best = (m, ck, recs)
+        m, c, per, cov, recs = eval_model(ck, mean, std, maxa, args.shapes, args.seed, args.slew,
+                                          os.path.join(args.out, "_tmp"), args.att_d_gain,
+                                          args.cov_tol)
+        print(f"{os.path.basename(ck):<22} {m:>8.4f} {c*100:>6.0f}%  "
+              + " ".join(f"{per[s]:>8.4f}" for s in args.shapes))
+        rows.append((m, c, ck, recs))
 
-    m, ck, recs = best
+    #### 추적오차만으로 고르면 '경로 위에 가만히 떠 있는' 정책이 1등을 한다(오차≈0, 진행 없음).
+    #### 그래서 먼저 모든 도형에서 경로를 min_coverage 이상 지나간 체크포인트만 남기고,
+    #### 그 안에서 오차가 가장 낮은 것을 고른다. 아무도 통과 못 하면 가장 많이 돈 것을 고른다.
+    ok = [r for r in rows if r[1] >= args.min_coverage]
+    if ok:
+        m, c, ck, recs = min(ok, key=lambda r: r[0])
+    else:
+        m, c, ck, recs = max(rows, key=lambda r: (r[1], -r[0]))
+        print(f"\n[주의] 경로 {args.min_coverage*100:.0f}% 이상 완주한 체크포인트가 없음 "
+              f"— 완주율이 가장 높은 것을 선택")
     shutil.copy(ck, os.path.join(args.run_dir, "best_model.pt"))
-    print(f"\n[BEST] {os.path.basename(ck)}  mean_err={m:.4f} m  -> {args.run_dir}\\best_model.pt")
+    print(f"\n[BEST] {os.path.basename(ck)}  mean_err={m:.4f} m  coverage={c*100:.0f}%"
+          f"  -> {args.run_dir}\\best_model.pt")
 
     results = [(s, recs[s][0], recs[s][1], 0.0, recs[s][2]) for s in args.shapes]
     png = os.path.join(args.out, "best_trajectories.png")

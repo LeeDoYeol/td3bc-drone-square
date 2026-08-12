@@ -125,38 +125,46 @@ def main():
 
         # select_best 로그에서 best 결과 회수
         text = open(sel_log, encoding="utf-8").read() if os.path.exists(sel_log) else ""
-        m = re.search(r"\[BEST\]\s+(\S+)\s+mean_err=([\d.]+)", text)
+        m = re.search(r"\[BEST\]\s+(\S+)\s+mean_err=([\d.]+)\s*m(?:\s+coverage=([\d.]+)%)?", text)
         best_ckpt, mean_err = (m.group(1), float(m.group(2))) if m else ("?", float("nan"))
+        coverage = float(m.group(3)) / 100 if (m and m.group(3)) else float("nan")
         per = {}
         for line in text.splitlines():                      # 체크포인트별 표에서 best 행의 도형별 값
             if m and line.startswith(best_ckpt):
-                vals = line.split()[1:]
-                if len(vals) == 1 + len(args.shapes):
-                    per = dict(zip(args.shapes, [float(v) for v in vals[1:]]))
-        rows.append(dict(tag=tag, desc=desc, mean_err=mean_err, best_ckpt=best_ckpt,
+                vals = line.replace("%", "").split()[1:]     # mean, cover, 도형별...
+                if len(vals) == 2 + len(args.shapes):
+                    per = dict(zip(args.shapes, [float(v) for v in vals[2:]]))
+        rows.append(dict(tag=tag, desc=desc, mean_err=mean_err, coverage=coverage,
+                         best_ckpt=best_ckpt,
                          minutes=round((time.time() - t0) / 60, 1), **per))
-        print(f"[{tag}] mean_err={mean_err:.4f} m  ({rows[-1]['minutes']} min)", flush=True)
+        print(f"[{tag}] mean_err={mean_err:.4f} m  완주율={coverage*100:.0f}%  "
+              f"({rows[-1]['minutes']} min)", flush=True)
 
     if not rows:
         return
-    rows_sorted = sorted(rows, key=lambda r: r["mean_err"])
-    cols = ["tag", "desc", "mean_err", "best_ckpt", "minutes"] + args.shapes
+    # 경로를 제대로 돈 것부터(완주율 우선), 그 다음 오차 순 — 제자리 정지 정책이 1등에 오지 않게
+    rows_sorted = sorted(rows, key=lambda r: (-(r["coverage"] if r["coverage"] == r["coverage"] else 0),
+                                              r["mean_err"]))
+    cols = ["tag", "desc", "mean_err", "coverage", "best_ckpt", "minutes"] + args.shapes
     with open("results.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore"); w.writeheader()
         for r in rows:
             w.writerow(r)
     with open("results.md", "w", encoding="utf-8") as f:
         f.write(f"# 증강 비교 결과 ({args.data}, {args.steps:,} steps)\n\n")
-        f.write("| 설정 | 5도형 평균 | best ckpt | " + " | ".join(args.shapes) + " |\n")
-        f.write("|---|---|---|" + "---|" * len(args.shapes) + "\n")
+        f.write("경로 완주율이 낮으면 추적오차가 작아도 '제자리에 떠 있는' 정책이다"
+                " — 완주율을 먼저 본다.\n\n")
+        f.write("| 설정 | 경로 완주율 | 5도형 평균오차 | best ckpt | " + " | ".join(args.shapes) + " |\n")
+        f.write("|---|---|---|---|" + "---|" * len(args.shapes) + "\n")
         for r in rows_sorted:
             shp = " | ".join(f"{r.get(s, float('nan')):.2f}" for s in args.shapes)
-            f.write(f"| {r['desc']} | **{r['mean_err']:.3f} m** | {r['best_ckpt']} | {shp} |\n")
+            f.write(f"| {r['desc']} | **{r['coverage']*100:.0f}%** | {r['mean_err']:.3f} m "
+                    f"| {r['best_ckpt']} | {shp} |\n")
         f.write(f"\n총 소요: {(time.time()-t_all)/3600:.1f} 시간\n")
 
     print("\n" + "=" * 70)
     for r in rows_sorted:
-        print(f"  {r['mean_err']:.4f} m   {r['desc']}")
+        print(f"  완주 {r['coverage']*100:>3.0f}%  오차 {r['mean_err']:.4f} m   {r['desc']}")
     print(f"\n[OK] results.md / results.csv 저장  (총 {(time.time()-t_all)/3600:.1f}시간)")
     print("산출물 압축: python collect_outputs.py")
 

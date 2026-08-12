@@ -79,6 +79,22 @@ def latest_csv(folder):
     return max(fs, key=os.path.getmtime)
 
 
+def path_coverage(target, flown, tol=0.5):
+    """목표 경로 중 실제로 지나간 비율(0~1).
+
+    추적오차(track_err)만 보면 '경로 위 한 점에 가만히 떠 있는' 정책이 최고점을 받는다
+    — 가장 가까운 경로점까지의 거리가 0에 가까우니까. 실제로 도형을 그렸는지 보려면
+    경로를 얼마나 돌았는지도 함께 봐야 한다. 각 목표점에 tol[m] 안으로 접근한 적이
+    있으면 '지나갔다'고 센다.
+    """
+    t, f = np.asarray(target), np.asarray(flown)
+    if len(f) == 0:
+        return 0.0
+    step = max(1, len(f) // 2000)              # 큰 롤아웃은 솎아서 거리계산 비용을 낮춘다
+    d = np.linalg.norm(t[:, None, :] - f[None, ::step, :], axis=2).min(axis=1)
+    return float(np.mean(d <= tol))
+
+
 def track_err(csv_path):
     rows = list(csvmod.DictReader(open(csv_path)))
     pe = np.array([[float(r["tx-x"]), float(r["ty-y"]), float(r["tz-z"])] for r in rows])
@@ -102,7 +118,8 @@ def combined_plot(results, out_png):
         hr = max((allp.max(0) - allp.min(0)).max(), 1e-6) / 2
         ax.set_xlim(mid[0]-hr, mid[0]+hr); ax.set_ylim(mid[1]-hr, mid[1]+hr); ax.set_zlim(mid[2]-hr, mid[2]+hr)
         ax.set_box_aspect((1, 1, 1))
-        ax.set_title(f"{shape}\npolicy {p:.2f}m (expert {e:.2f}m)", fontsize=9)
+        cov = path_coverage(target, flown)
+        ax.set_title(f"{shape}\npolicy {p:.2f}m  경로 {cov*100:.0f}% (expert {e:.2f}m)", fontsize=9)
     handles, labels = ax.get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper right")
     fig.suptitle("same-simulator rollout: target vs TD3+BC policy", fontsize=12)
