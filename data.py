@@ -71,6 +71,24 @@ def load_dataset(data_path, max_rows=None):
     return state, action, next_state, reward, not_done, max_action
 
 
+def shape_mask(data_path, labels_csv, keep, max_rows=None):
+    """'이 도형만 쓰기' 마스크. label_shapes.py 가 만든 라벨 파일을 쓴다.
+
+    학습 도형을 제한해(예: 삼각형·사각형만) 나머지 도형을 '처음 보는 경로'로 두는 실험용.
+    데이터셋에 도형 열이 없으므로 episode_id ↔ 도형 매핑을 라벨 파일에서 가져온다.
+    """
+    eid = pd.read_csv(data_path, usecols=["episode_id"])["episode_id"].to_numpy()
+    if max_rows:
+        eid = eid[:max_rows]
+    lab = pd.read_csv(labels_csv)
+    wanted = set(keep)
+    keep_ids = lab.loc[lab["shape"].isin(wanted), "episode_id"].to_numpy()
+    mask = np.isin(eid, keep_ids)
+    if not mask.any():
+        raise ValueError(f"도형 {sorted(wanted)} 에 해당하는 전이가 없음 — 라벨 파일 확인")
+    return mask
+
+
 def episode_slices(not_done):
     """not_done(=0 이 에피소드 마지막 행) 으로부터 에피소드 경계 [(start, end), ...]."""
     nd = np.asarray(not_done).reshape(-1)

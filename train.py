@@ -49,6 +49,11 @@ def main():
                     help="합성 전이 npz(쉼표로 여러 개) — gen_diffusion.py / gen_gan.py 산출물")
     ap.add_argument("--real_rows", type=int, default=None,
                     help="실데이터를 이 개수로 잘라 사용(0이면 합성만). 증강 비율 실험용")
+    ap.add_argument("--shapes_keep", nargs="+", default=None,
+                    help="이 도형만 학습에 사용(예: triangle square). 나머지 도형은 평가에서"
+                         " '처음 보는 경로'가 된다")
+    ap.add_argument("--shape_labels", default="shape_labels.csv",
+                    help="label_shapes.py 가 만든 에피소드-도형 매핑")
     ap.add_argument("--real_subset", choices=["even", "head"], default="even",
                     help="실데이터 일부만 쓸 때 고르는 방식. even=전체에 흩어진 에피소드"
                          "(도형이 뭉쳐 있어 head 로 자르면 한 도형만 담긴다)")
@@ -65,6 +70,12 @@ def main():
 
     # 데이터
     state, action, next_state, reward, not_done, max_action = load_dataset(args.data, args.max_rows)
+    if args.shapes_keep:                     # 학습 도형 제한 (경로 일반화 실험)
+        from data import shape_mask
+        m = shape_mask(args.data, args.shape_labels, args.shapes_keep, args.max_rows)
+        state, action, next_state, reward, not_done = (
+            x[m] for x in (state, action, next_state, reward, not_done))
+        print(f"shapes {args.shapes_keep} -> {len(state):,} rows")
     if args.real_rows is not None:           # 0 이면 합성 데이터만으로 학습(대체 실험)
         from data import take_subset
         state, action, next_state, reward, not_done = take_subset(

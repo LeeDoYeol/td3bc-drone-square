@@ -82,6 +82,11 @@ def main():
                     help="실데이터 일부만으로 생성기 학습(저데이터 증강 실험). 예: 100000")
     ap.add_argument("--subset", choices=["even", "head"], default="even",
                     help="일부만 쓸 때 고르는 방식(even=전체에 흩어진 에피소드)")
+    ap.add_argument("--shapes_keep", nargs="+", default=None,
+                    help="이 도형만으로 생성기 학습(경로 일반화 실험). 빼놓은 도형이 합성을 통해"
+                         " 새어 들어가지 않게 한다")
+    ap.add_argument("--shape_labels", default="shape_labels.csv",
+                    help="label_shapes.py 가 만든 에피소드-도형 매핑")
     ap.add_argument("--n", type=int, default=500_000, help="생성할 전이 수")
     ap.add_argument("--steps", type=int, default=30_000, help="학습 스텝")
     ap.add_argument("--batch_size", type=int, default=512)
@@ -112,7 +117,8 @@ def main():
         dif = DDPM(T=ck["T"], device=dev)
         print(f"loaded generator <- {args.load_model}")
     else:
-        x_raw, lo, hi = real_matrix(args.data, args.max_rows, delta=args.delta, subset=args.subset)
+        x_raw, lo, hi = real_matrix(args.data, args.max_rows, delta=args.delta, subset=args.subset,
+                                    shapes_keep=args.shapes_keep, shape_labels=args.shape_labels)
         mu, sd = fit_norm(x_raw)
         X = torch.as_tensor((x_raw - mu) / sd)
 

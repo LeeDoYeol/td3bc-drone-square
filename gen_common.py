@@ -80,14 +80,24 @@ def load_synth(path):
     return (z["state"], z["action"], z["next_state"], z["reward"], z["not_done"])
 
 
-def real_matrix(data_path, max_rows=None, delta=False, subset="even"):
+def real_matrix(data_path, max_rows=None, delta=False, subset="even",
+                shapes_keep=None, shape_labels="shape_labels.csv"):
     """실제 CSV → (X(N,36), lo, hi) — 생성모델 학습 데이터와 클리핑 범위.
 
     max_rows 로 일부만 쓸 때 subset="even" 이면 파일 전체에 흩어진 에피소드를 뽑는다
     (에피소드가 도형별로 뭉쳐 있어 앞에서 자르면 한 도형만 학습하게 된다).
+
+    shapes_keep 을 주면 그 도형만으로 생성기를 학습한다. 경로 일반화 실험에서는 반드시
+    필요하다 — 학습에서 뺀 도형을 생성기가 보면, '처음 보는 경로'가 합성 데이터를 통해
+    새어 들어와 실험이 무의미해진다.
     """
-    from data import load_dataset, take_subset
+    from data import load_dataset, take_subset, shape_mask
     state, action, next_state, reward, not_done, max_action = load_dataset(data_path)
+    if shapes_keep:
+        m = shape_mask(data_path, shape_labels, shapes_keep)
+        state, action, next_state, reward, not_done = (
+            x[m] for x in (state, action, next_state, reward, not_done))
+        print(f"generator shapes {shapes_keep} -> {len(state):,} rows")
     if max_rows is not None:
         state, action, next_state, reward, not_done = take_subset(
             [state, action, next_state, reward, not_done], max_rows, subset)

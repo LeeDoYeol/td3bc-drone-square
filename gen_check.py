@@ -32,10 +32,22 @@ def quat_norm(s):
     return np.linalg.norm(s[:, 3:7], axis=1)
 
 
+def off_path_frac(s, thr=0.2):
+    """경로에서 thr[m] 이상 벗어난 전이의 비율 = '복구 상황'이 데이터에 얼마나 있는가.
+
+    증강이 복구 경험을 실제로 채워 주는지 판정하는 핵심 지표. 생성모델은 자기가 본 분포를
+    재현하므로, 원본에 복구가 없으면 합성에도 없을 수 있다. 원본보다 이 값이 뚜렷이 크면
+    생성모델이 보간으로 이탈 상태를 만들어 내고 있다는 뜻이다(= 구멍을 메울 여지가 있음).
+    """
+    return float(np.mean(np.linalg.norm(s[:, 0:3], axis=1) > thr))
+
+
 def summarize(name, x):
     s, a, ns, r = split_matrix(x)
     res = dyn_residual(s, ns)
     print(f"\n[{name}]  n={len(x):,}")
+    print(f"  off-path(>0.2m) = {100*off_path_frac(s):.2f}%   "
+          f"(>0.5m: {100*off_path_frac(s, 0.5):.2f}%)")
     print(f"  reward      mean={r.mean():+.3f}  std={r.std():.3f}  min={r.min():+.3f} max={r.max():+.3f}")
     print(f"  action|max| ={np.abs(a).max():.3f}")
     print(f"  quat norm   mean={quat_norm(s).mean():.4f}  (1.0 이어야 정상)")
