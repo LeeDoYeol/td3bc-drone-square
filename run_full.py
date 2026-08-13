@@ -57,6 +57,8 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.5)
     ap.add_argument("--stride", type=int, default=1)
     ap.add_argument("--gen_steps", type=int, default=30000)
+    ap.add_argument("--gen_frac", type=float, default=1.0,
+                    help="생성할 합성 전이 수를 이 비율로 축소(파이프라인 점검용). 1.0=정상")
     ap.add_argument("--skip_a", action="store_true", help="실험 A 건너뜀")
     ap.add_argument("--skip_b", action="store_true", help="실험 B 건너뜀")
     ap.add_argument("--only_a", nargs="+", default=None)
@@ -91,7 +93,7 @@ def main():
             if os.path.exists(out):
                 print(f"[skip] {out} 있음")
                 continue
-            cmd = [py, script, "--data", DATA_PATH, "--n", str(n),
+            cmd = [py, script, "--data", DATA_PATH, "--n", str(max(1000, int(n * args.gen_frac))),
                    "--steps", str(args.gen_steps if script.endswith("diffusion.py") else 6000),
                    "--save_model", out.replace(".npz", ".pt"), "--out", out,
                    "--device", args.device]
@@ -122,7 +124,8 @@ def main():
         cmd = [py, "run_shape_exp.py", "--data", DATA_PATH, "--labels", LABELS,
                "--steps", str(args.steps), "--save_every", str(args.save_every),
                "--alpha", str(args.alpha), "--stride", str(args.stride),
-               "--gen_steps", str(args.gen_steps), "--device", args.device]
+               "--gen_steps", str(args.gen_steps), "--gen_frac", str(args.gen_frac),
+               "--device", args.device]
         if args.only_b:
             cmd += ["--only", *args.only_b]
         if args.no_eval:

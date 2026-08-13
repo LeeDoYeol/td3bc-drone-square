@@ -62,6 +62,8 @@ def main():
     ap.add_argument("--save_every", type=int, default=10000)
     ap.add_argument("--alpha", type=float, default=0.5)
     ap.add_argument("--gen_steps", type=int, default=30000, help="생성기 학습 스텝")
+    ap.add_argument("--gen_frac", type=float, default=1.0,
+                    help="생성할 합성 전이 수를 이 비율로 축소(파이프라인 점검용). 1.0=정상")
     ap.add_argument("--shapes", nargs="+",
                     default=["line", "triangle", "square", "circle", "star"], help="평가 도형")
     ap.add_argument("--seed", type=int, default=500)
@@ -96,9 +98,10 @@ def main():
             if os.path.exists(syn):
                 print(f"[skip] {syn} 이미 있음", flush=True)
             else:
+                n_syn = max(1000, int(args.synth_rows * args.gen_frac))
                 gcmd = [py, "gen_diffusion.py", "--data", args.data,
                         "--max_rows", str(args.real_rows), "--subset", "even",
-                        "--n", str(args.synth_rows), "--steps", str(args.gen_steps),
+                        "--n", str(n_syn), "--steps", str(args.gen_steps),
                         "--save_model", syn.replace(".npz", ".pt"), "--out", syn,
                         "--device", args.device]
                 if shapes:
@@ -126,7 +129,7 @@ def main():
             json.dump(sig, open(meta_path, "w", encoding="utf-8"))
 
         if args.no_eval:
-            print(f"[{tag}] 학습 완료 ({(time.time()-t0)/60:.1f}분) — 평가는 다른 머신에서",
+            print(f"[{tag}] 학습 완료 ({(time.time()-t0)/60:.1f}분), 평가는 다른 머신에서",
                   flush=True)
             continue
 
