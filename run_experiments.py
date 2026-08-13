@@ -21,7 +21,7 @@ import argparse
 import subprocess
 
 
-def configs(diff, gan, diff_s=None, gan_s=None):
+def configs(diff, gan, diff_s=None, gan_s=None, diff_m=None, gan_m=None):
     """(태그, train.py 추가인자, 설명).
 
     c1~c7 : 총량 1.5M 고정, 실제/합성 비율만 변경 (증강이 실데이터를 대체할 수 있는가)
@@ -48,11 +48,15 @@ def configs(diff, gan, diff_s=None, gan_s=None):
          "원본 1.5M (기준선)"),
         ("c2_real10_dif05", ["--real_rows", "1000000", "--extra_data", diff, "--extra_rows", "500000"],
          "원본 1.0M + diffusion 0.5M"),
-        ("c3_real05_dif10", ["--real_rows", "500000", "--extra_data", diff, "--extra_rows", "1000000"],
+        #### 0.5M 설정의 합성은 '그 0.5M 만 본' 생성기라야 한다(diff_m). 전체로 학습한
+        #### 생성기를 쓰면 없다고 가정한 1.0M 이 합성을 통해 새어 들어온다.
+        ("c3_real05_dif10", ["--real_rows", "500000", "--extra_data", diff_m or diff,
+                             "--extra_rows", "1000000"],
          "원본 0.5M + diffusion 1.0M"),
         ("c4_real10_gan05", ["--real_rows", "1000000", "--extra_data", gan, "--extra_rows", "500000"],
          "원본 1.0M + GAN 0.5M"),
-        ("c5_real05_gan10", ["--real_rows", "500000", "--extra_data", gan, "--extra_rows", "1000000"],
+        ("c5_real05_gan10", ["--real_rows", "500000", "--extra_data", gan_m or gan,
+                             "--extra_rows", "1000000"],
          "원본 0.5M + GAN 1.0M"),
         ("c6_dif15",        ["--real_rows", "0", "--extra_data", diff, "--extra_rows", "1500000"],
          "diffusion 1.5M (합성만)"),
@@ -84,6 +88,10 @@ def main():
                     help="원본 0.1M 만으로 학습한 diffusion 합성 npz (c8/c9 실행 조건)")
     ap.add_argument("--gan_small", default=None,
                     help="원본 0.1M 만으로 학습한 GAN 합성 npz (c8/c9 실행 조건)")
+    ap.add_argument("--diff_mid", default=None,
+                    help="원본 0.5M 만으로 학습한 diffusion 합성 npz (없으면 전체 생성기 사용)")
+    ap.add_argument("--gan_mid", default=None,
+                    help="원본 0.5M 만으로 학습한 GAN 합성 npz")
     ap.add_argument("--steps", type=int, default=300000)
     ap.add_argument("--save_every", type=int, default=10000)
     ap.add_argument("--alpha", type=float, default=2.5)
@@ -103,7 +111,8 @@ def main():
     py = sys.executable
     rows, t_all = [], time.time()
 
-    for tag, extra, desc in configs(args.diff, args.gan, args.diff_small, args.gan_small):
+    for tag, extra, desc in configs(args.diff, args.gan, args.diff_small, args.gan_small,
+                                    args.diff_mid, args.gan_mid):
         if args.only and tag not in args.only:
             continue
         run_dir, sel_dir = f"runs_{tag}", f"select_{tag}"
